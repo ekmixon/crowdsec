@@ -1,6 +1,8 @@
 package v1
 
 import (
+	"time"
+
 	jwt "github.com/appleboy/gin-jwt/v2"
 	"github.com/gin-gonic/gin"
 	"github.com/prometheus/client_golang/prometheus"
@@ -50,6 +52,15 @@ var LapiNonNilDecisions = prometheus.NewCounterVec(
 		Help: "Number of calls to /decisions that returned non-nil result.",
 	},
 	[]string{"bouncer"},
+)
+
+var LapiResponseTime = prometheus.NewHistogramVec(
+	prometheus.HistogramOpts{
+		Name:    "cs_lapi_response_seconds",
+		Help:    "How many seconds it took to get decision.",
+		Buckets: prometheus.LinearBuckets(20, 5, 5), // 5 buckets, each 5 centigrade wide.
+	},
+	[]string{"route"},
 )
 
 func PrometheusBouncersHasEmptyDecision(c *gin.Context) {
@@ -103,5 +114,15 @@ func PrometheusMiddleware() gin.HandlerFunc {
 			"route":  c.Request.URL.Path,
 			"method": c.Request.Method}).Inc()
 		c.Next()
+	}
+}
+
+func PrometheusObserverMiddleware() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		startTime := time.Now()
+		c.Next()
+		latency := time.Since(startTime)
+		LapiResponseTime.With(prometheus.Labels{
+			"route": c.Request.URL.Path}).Observe(float64(latency))
 	}
 }

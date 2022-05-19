@@ -91,7 +91,8 @@ func registerPrometheus(config *csconfig.PrometheusCfg) {
 			parser.NodesHits, parser.NodesHitsOk, parser.NodesHitsKo,
 			globalCsInfo,
 			v1.LapiRouteHits, v1.LapiMachineHits, v1.LapiBouncerHits, v1.LapiNilDecisions, v1.LapiNonNilDecisions,
-			leaky.BucketsPour, leaky.BucketsUnderflow, leaky.BucketsCanceled, leaky.BucketsInstanciation, leaky.BucketsOverflow, leaky.BucketsCurrentCount)
+			leaky.BucketsPour, leaky.BucketsUnderflow, leaky.BucketsCanceled, leaky.BucketsInstanciation, leaky.BucketsOverflow, leaky.BucketsCurrentCount,
+			v1.LapiResponseTime)
 
 	}
 	http.Handle("/metrics", promhttp.Handler())
