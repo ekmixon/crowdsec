@@ -122,6 +122,10 @@ func ShowPrometheus(url string) {
 	parsers_stats := map[string]map[string]int{}
 	buckets_stats := map[string]map[string]int{}
 	lapi_stats := map[string]map[string]int{}
+	lapi_responses_stats := map[string]struct {
+		count int
+		sum   float64
+	}{}
 	lapi_machine_stats := map[string]map[string]map[string]int{}
 	lapi_bouncer_stats := map[string]map[string]map[string]int{}
 
@@ -131,11 +135,53 @@ func ShowPrometheus(url string) {
 		}
 		log.Tracef("round %d", idx)
 		for _, m := range fam.Metrics {
+			// var metric *prom2json.Metric
+			// var histogram *prom2json.Histogram
+
+			var name, machine, bouncer, route, method string
+			var ival, count, sum int
+			//var fval float64
+			var ok bool
+			switch m.(type) {
+			case prom2json.Metric:
+				metric := m.(prom2json.Metric)
+				name, ok = metric.Labels["name"]
+				if !ok {
+					log.Debugf("no name in Metric %v", metric.Labels)
+				}
+				//source is for acquis related metrics, type:target, ie: file:/path/to/file.log
+				source, ok := metric.Labels["source"]
+				if !ok {
+					log.Debugf("no source in Metric %v for %s", metric.Labels, fam.Name)
+				} else {
+					if srctype, ok := metric.Labels["type"]; ok {
+						source = srctype + ":" + source
+					}
+				}
+				value := m.(prom2json.Metric).Value
+				machine = metric.Labels["machine"]
+				bouncer = metric.Labels["bouncer"]
+				route = metric.Labels["route"]
+				method = metric.Labels["method"]
+				fval, err := strconv.ParseFloat(value, 32)
+				if err != nil {
+					log.Errorf("Unexpected int value %s : %s", value, err)
+				}
+				ival = int(fval)
+			case prom2json.Histogram:
+				histogram := m.(prom2json.Histogram)
+				name = histogram.Labels["name"]
+				route = histogram.Labels["route"]
+				//ival = histogram.Count
+				ival = strconv.ParseInt(histogram.Sum, 10, 32)
+			}
+
 			metric := m.(prom2json.Metric)
 			name, ok := metric.Labels["name"]
 			if !ok {
 				log.Debugf("no name in Metric %v", metric.Labels)
 			}
+			//source is for acquis related metrics, type:target, ie: file:/path/to/file.log
 			source, ok := metric.Labels["source"]
 			if !ok {
 				log.Debugf("no source in Metric %v for %s", metric.Labels, fam.Name)
@@ -188,7 +234,7 @@ func ShowPrometheus(url string) {
 					buckets_stats[name] = make(map[string]int)
 				}
 				buckets_stats[name]["underflow"] += ival
-				/*acquis*/
+			/*acquis*/
 			case "cs_parser_hits_total":
 				if _, ok := acquis_stats[source]; !ok {
 					acquis_stats[source] = make(map[string]int)
@@ -224,6 +270,29 @@ func ShowPrometheus(url string) {
 					lapi_stats[route] = make(map[string]int)
 				}
 				lapi_stats[route][method] += ival
+			//xx
+			case "cs_lapi_response_seconds_sum":
+				if _, ok := lapi_responses_stats[route]; !ok {
+					lapi_responses_stats[route] = struct {
+						count int
+						sum   float64
+					}{}
+				}
+				swp := lapi_responses_stats[route]
+				swp.sum = ival
+				lapi_responses_stats[route] = swp
+			case "cs_lapi_response_seconds_count":
+				if _, ok := lapi_responses_stats[route]; !ok {
+					lapi_responses_stats[route] = struct {
+						count int
+						sum   float64
+					}{}
+				}
+				swp := lapi_responses_stats[route]
+				swp.count = ival
+				lapi_responses_stats[route] = swp
+
+			//lapi_responses_stats
 			case "cs_lapi_machine_requests_total":
 				if _, ok := lapi_machine_stats[machine]; !ok {
 					lapi_machine_stats[machine] = make(map[string]map[string]int)
